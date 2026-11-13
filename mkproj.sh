@@ -14,7 +14,7 @@ cat > "$dir/pyproject.toml" <<EOF
 name = "${slug}-${today}"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = ["fastapi", "uvicorn[standard]"]
+dependencies = ["fastapi[standard]", "uvicorn[standard]"]
 
 [dependency-groups]
 dev = ["pytest>=8", "httpx2", "pytest-cov>=5"]
@@ -23,6 +23,9 @@ dev = ["pytest>=8", "httpx2", "pytest-cov>=5"]
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-q"
+
+[tool.fastapi]
+entrypoint = "app.main:app"
 EOF
 
 cat > "$dir/app/main.py" <<'EOF'
@@ -32,7 +35,7 @@ app = FastAPI()
 
 
 @app.get("/")
-def read_root():
+async def read_root():
     return {"hello": "world"}
 EOF
 
