@@ -40,3 +40,8 @@ project
 [Google AI Studio example](https://aistudio.google.com/docs/get-started)
 [Google AI Studio api keys](https://aistudio.google.com/api-keys)
 
+# 问题一：返回的信息会出现卡断
+
+# 问题二：指数退避，随机抖动
+- 指数退避让请求间隔越来越长
+- 随机抖动可以避免大量客户端在同一时间发生错误后，又在同一时间重新请求服务器，造成第二次流量拥堵。
