@@ -14,6 +14,8 @@ from bashkit.deepagents import BashkitBackend
 
 from langgraph.checkpoint.memory import InMemorySaver
 
+from app.tools import add
+
 
 load_dotenv()
 
@@ -98,7 +100,8 @@ def fetch_text_from_url(url: str) -> str:
 
 
 shared_tools = [
-    fetch_text_from_url
+    fetch_text_from_url,
+    add,
 ]
 
 

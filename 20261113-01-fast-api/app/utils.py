@@ -3,6 +3,53 @@ import random
 
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
+def invoke_model_with_tools(
+    model,
+    messages,
+    tools,
+    max_tool_rounds=10,
+    max_attempts=5,
+):
+    """
+    执行模型调用。
+    如果模型请求工具，则执行工具并继续调用模型。
+    直到模型返回普通回答。
+    """
+
+    tools_by_name = {tool.name: tool for tool in tools}
+
+    for tool_round in range(max_tool_rounds):
+
+        result = invoke_with_retry(
+            model,
+            messages,
+            max_attempts=max_attempts,
+        )
+
+        # 保存 AIMessage，包括 tool_calls
+        messages.append(result)
+
+        # 没有工具调用，说明模型已经返回普通回答
+        if not result.tool_calls:
+            return result
+
+        print(f"执行第 {tool_round + 1} 轮工具调用")
+
+        # 执行工具并将结果转换为模型可继续处理的 ToolMessage
+        tool_messages = []
+        for tool_call in result.tool_calls:
+            tool = tools_by_name.get(tool_call["name"])
+            if tool is None:
+                raise ValueError(
+                    f"模型请求了未注册的工具：{tool_call['name']}"
+                )
+            tool_messages.append(tool.invoke(tool_call))
+
+        # 将工具执行结果添加到上下文
+        messages.extend(tool_messages)
+
+    raise RuntimeError("超过最大工具调用轮数")
+
 def timed_call(name, func):
     start = time.perf_counter()
 
@@ -43,8 +90,8 @@ def invoke_with_retry(
         try:
             result = model.invoke(messages)
 
-            # 空内容视为本次请求未成功
-            if not result.content:
+            # 工具调用响应通常没有文本内容，但仍是有效的模型响应。
+            if not result.content and not result.tool_calls:
                 raise RuntimeError("模型返回了空内容")
 
             return result
@@ -70,11 +117,13 @@ def invoke_with_retry(
 
             if not retryable:
                 print(f"不可重试错误：{type(e).__name__}: {e}")
-                return None
+                raise
 
             if attempt >= max_attempts:
                 print(f"请求失败，已达到最大重试次数：{e}")
-                return None
+                raise RuntimeError(
+                    f"模型请求失败，已重试 {max_attempts} 次"
+                ) from e
 
             # 指数退避 + 随机抖动
             delay = min(
@@ -102,7 +151,7 @@ def invoke_with_retry(
 
             time.sleep(delay)
 
-    return None
+    raise RuntimeError("模型请求失败，未获得响应")
 
 
 def invoke_until_complete(
@@ -110,6 +159,8 @@ def invoke_until_complete(
     prompt: str,
     max_rounds: int = 5,
     max_attempts: int = 5,
+    tools=None,
+    max_tool_rounds: int = 10,
 ):
     """
     自动检测回答完整性。
@@ -126,6 +177,7 @@ def invoke_until_complete(
         ),
         HumanMessage(content=prompt),
     ]
+    tool_enabled_model = model.bind_tools(tools) if tools else model
 
     full_content = ""
     last_metadata = {}
@@ -135,16 +187,20 @@ def invoke_until_complete(
 
         print(f"\n========== 第 {round_num} 轮生成 ==========")
 
-        result = invoke_with_retry(
-            model,
-            messages,
-            max_attempts=max_attempts,
-        )
-
-        # 多次重试仍然失败，不让程序直接崩溃
-        if result is None:
-            print("本轮请求最终失败，保留已有回答。")
-            break
+        if tools:
+            result = invoke_model_with_tools(
+                tool_enabled_model,
+                messages,
+                tools,
+                max_tool_rounds=max_tool_rounds,
+                max_attempts=max_attempts,
+            )
+        else:
+            result = invoke_with_retry(
+                tool_enabled_model,
+                messages,
+                max_attempts=max_attempts,
+            )
 
         content = result.content
         last_metadata = result.response_metadata or {}
@@ -171,8 +227,9 @@ def invoke_until_complete(
             print("达到最大续写轮数。")
             break
 
-        # 保存本轮回答
-        messages.append(AIMessage(content=content))
+        # invoke_model_with_tools 已保存模型最终回答。
+        if not tools:
+            messages.append(AIMessage(content=content))
 
         # 请求模型继续
         messages.append(
