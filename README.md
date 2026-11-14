@@ -36,9 +36,15 @@ project
 
 ## LangChain 当前 API 中跑通模型/消息调用与 create_agent，理解工具、状态和 middleware
 
+[免费的LLM API](https://openapi.felo.ai/zh-CN/free-llm-api)
+[free-llm-api-resources 指南](https://my.oschina.net/u/9487999/blog/19721096)
+
+
 [LangChain Quickstart](https://docs.langchain.com/oss/python/langchain/quickstart)
 [Google AI Studio example](https://aistudio.google.com/docs/get-started)
 [Google AI Studio api keys](https://aistudio.google.com/api-keys)
+
+[七牛云](https://portal.qiniu.com/)
 
 # 问题一：返回的信息会出现卡断
 
