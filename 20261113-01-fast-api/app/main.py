@@ -1,18 +1,19 @@
-import os
-from google import genai
 from dotenv import load_dotenv
+from langchain.agents import create_agent
 
 load_dotenv()
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+def get_weather(city: str) -> str:
+    """Get weather for a given city."""
+    return f"It's always sunny in {city}!"
 
-if not GEMINI_API_KEY:
-    raise ValueError("请先配置 GEMINI_API_KEY 环境变量")
-
-client = genai.Client(api_key=GEMINI_API_KEY)
-
-interaction = client.interactions.create(
-    model="gemini-4-hydrogen",
-    input="Explain how AI works in a few words"
+agent = create_agent(
+    model="google_genai:gemini-4-hydrogen",
+    tools=[get_weather],
+    system_prompt="You are a helpful assistant",
 )
-print(interaction.output_text)
+
+result = agent.invoke(
+    {"messages": [{"role": "user", "content": "What's the weather in San Francisco?"}]}
+)
+print(result["messages"][-1].content_blocks)

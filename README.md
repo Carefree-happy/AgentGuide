@@ -34,4 +34,9 @@ project
 
 # 项目简介
 
+## LangChain 当前 API 中跑通模型/消息调用与 create_agent，理解工具、状态和 middleware
+
+[LangChain Quickstart](https://docs.langchain.com/oss/python/langchain/quickstart)
+[Google AI Studio example](https://aistudio.google.com/docs/get-started)
+[Google AI Studio api keys](https://aistudio.google.com/api-keys)
 
