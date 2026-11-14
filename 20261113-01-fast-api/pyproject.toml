@@ -3,6 +3,7 @@ name = "fast-api-20261113"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
+    "bashkit[deepagents]>=0.21.0",
     "deepagents>=0.7.38",
     "fastapi[standard]",
     "google-genai>=3.3.0",
@@ -11,8 +12,11 @@ dependencies = [
     "langchain-anthropic>=1.7.10",
     "langchain-google-genai>=4.5.0",
     "langchain-openai>=1.8.0",
+    "langgraph>=1.2.22",
+    "openai>=3.51.0",
     "pydantic>=2.14.3",
     "python-dotenv>=1.2.4",
+    "tenacity>=9.1.4",
     "uvicorn[standard]",
 ]
 
