@@ -26,4 +26,8 @@ project
 
 `uv run fastapi dev`
 
+[agent-demo 项目地址](https://agent-demo.fastapicloud.dev/)
+
 # 项目简介
+
+
