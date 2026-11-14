@@ -1,41 +1,18 @@
 import os
-from dotenv import load_dotenv
-from fastapi import FastAPI
-
-# 加载环境变量
-load_dotenv()
-
-# 遍历所有环境变量
-import os
+from google import genai
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# 定义需要读取的配置
-api_keys = {
-    "openai": "OPENAI_API_KEY",
-    "google": "GOOGLE_API_KEY",
-    "anthropic": "ANTHROPIC_API_KEY",
-    "openrouter": "OPENROUTER_API_KEY",
-    "fireworks": "FIREWORKS_API_KEY",
-    "baseten": "BASETEN_API_KEY",
-    "ollama": "OLLAMA_API_KEY",
-    "azure": "AZURE_OPENAI_API_KEY",
-    "huggingface": "HUGGINGFACEHUB_API_TOKEN",
-}
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# 遍历
-for provider, env_name in api_keys.items():
-    api_key = os.getenv(env_name)
+if not GEMINI_API_KEY:
+    raise ValueError("请先配置 GEMINI_API_KEY 环境变量")
 
-    if api_key:
-        print(f"{provider}: {env_name}已配置")
-    else:
-        print(f"{provider}: {env_name}未配置")
+client = genai.Client(api_key=GEMINI_API_KEY)
 
-app = FastAPI()
-
-
-@app.get("/")
-def hello():
-    return {"msg": "ok"}
+interaction = client.interactions.create(
+    model="gemini-4-hydrogen",
+    input="Explain how AI works in a few words"
+)
+print(interaction.output_text)
