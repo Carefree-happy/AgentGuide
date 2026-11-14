@@ -28,6 +28,10 @@ project
 
 [agent-demo 项目地址](https://agent-demo.fastapicloud.dev/)
 
+单独运行 python 程序
+
+`uv run python app/main.py`
+
 # 项目简介
 
 
