@@ -1,33 +1,28 @@
 import os
 
+from utils import check_config
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 
 load_dotenv()
 
-API_KEY = os.getenv("QINIU_API_KEY")
+# 大模型
+LLMS = "QINIU"
 
-BASE_URL = os.getenv("QINIU_URL")
+API_KEY = os.getenv(f"{LLMS}_API_KEY")
 
-MODEL_NAME = os.getenv("QINIU")
+BASE_URL = os.getenv(f"{LLMS}_URL")
 
-if not API_KEY:
-    raise RuntimeError("QINIU_API_KEY 未配置")
-else:
-    print(f"✅ QINIU_API_KEY 已配置")
+MODEL_ID = os.getenv(f"{LLMS}")
 
-if not BASE_URL:
-    raise RuntimeError("QINIU_URL 未配置")
-else:
-    print(f"✅ QINIU_URL 已配置")
-
-if not MODEL_NAME:
-    raise RuntimeError("QINIU 未配置")
-else:
-    print(f"✅ QINIU 已配置")
+check_config([
+    (API_KEY, f"{LLMS}_API_KEY", f"{LLMS}_API_KEY"),
+    (BASE_URL, f"{LLMS}_URL", f"{LLMS}_URL"),
+    (MODEL_ID, "MODEL_ID", LLMS)
+])
 
 model = init_chat_model(
-    MODEL_NAME,
+    MODEL_ID,
     model_provider="openai",
     temperature=0,
     timeout=120,

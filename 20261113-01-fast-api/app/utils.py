@@ -3,52 +3,17 @@ import random
 
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
-def invoke_model_with_tools(
-    model,
-    messages,
-    tools,
-    max_tool_rounds=10,
-    max_attempts=5,
-):
+def check_config(items: list):
     """
-    执行模型调用。
-    如果模型请求工具，则执行工具并继续调用模型。
-    直到模型返回普通回答。
+    批量校验配置项
+    items 格式：[(变量值, 环境变量名, 展示名称), ...]
     """
+    for value, env_name, display_name in items:
+        if not value:
+            raise RuntimeError(f"{display_name} 未配置")
+        else:
+            print(f"✅ {display_name} 已配置")
 
-    tools_by_name = {tool.name: tool for tool in tools}
-
-    for tool_round in range(max_tool_rounds):
-
-        result = invoke_with_retry(
-            model,
-            messages,
-            max_attempts=max_attempts,
-        )
-
-        # 保存 AIMessage，包括 tool_calls
-        messages.append(result)
-
-        # 没有工具调用，说明模型已经返回普通回答
-        if not result.tool_calls:
-            return result
-
-        print(f"执行第 {tool_round + 1} 轮工具调用")
-
-        # 执行工具并将结果转换为模型可继续处理的 ToolMessage
-        tool_messages = []
-        for tool_call in result.tool_calls:
-            tool = tools_by_name.get(tool_call["name"])
-            if tool is None:
-                raise ValueError(
-                    f"模型请求了未注册的工具：{tool_call['name']}"
-                )
-            tool_messages.append(tool.invoke(tool_call))
-
-        # 将工具执行结果添加到上下文
-        messages.extend(tool_messages)
-
-    raise RuntimeError("超过最大工具调用轮数")
 
 def timed_call(name, func):
     start = time.perf_counter()
@@ -75,96 +40,119 @@ def timed_call(name, func):
 
 
 def invoke_with_retry(
-    model,
-    messages,
+    runner_callable,
     max_attempts=5,
     base_delay=2,
     max_delay=30,
 ):
     """
-    模型请求容错：
-    429、超时、网络异常、服务器错误自动重试。
+    ========== 【底层网络&异常重试层，只负责通信容错，不关心续写、不关心工具】 ==========
+    职责：
+      1. 捕获网络类异常：连接失败、超时、服务商限流429、5xx服务错误
+      2. 指数退避 + jitter，优先遵从响应头 Retry-After
+      3. 区分【可重试错误】和【不可重试错误】，不可重试直接向上抛
+      4. 只返回 AIMessage，校验返回体合法性（不能完全空）
+    适用对象：
+      - lambda: model.invoke(messages)
+      - lambda: agent.invoke({"messages": messages})
+    ！！重要：工具逻辑完全不在这一层，Agent内部闭环
     """
 
     for attempt in range(1, max_attempts + 1):
         try:
-            result = model.invoke(messages)
+            # 执行业务调用（model / agent）
+            result = runner_callable()
 
-            # 工具调用响应通常没有文本内容，但仍是有效的模型响应。
-            if not result.content and not result.tool_calls:
-                raise RuntimeError("模型返回了空内容")
+            # 合法性校验：返回不能既无内容也无tool_calls
+            # Agent场景下，中间tool轮次的AIMessage会带tool_calls、空content，是合法的
+            has_content = bool(result.content)
+            has_tool_calls = bool(getattr(result, "tool_calls", None))
+            if not has_content and not has_tool_calls:
+                raise RuntimeError("返回消息非法：无content，也无tool_calls")
 
             return result
 
         except Exception as e:
-
+            # 提取状态码：优先从异常本身，其次从e.response
             status_code = getattr(e, "status_code", None)
 
             response = getattr(e, "response", None)
             if status_code is None and response is not None:
                 status_code = getattr(response, "status_code", None)
 
-            error_name = type(e).__name__.lower()
+            error_class_name = type(e).__name__.lower()
+            err_msg = str(e).lower()
 
-            retryable = (
-                status_code in (408, 409, 425, 429)
+            # ====================== 可重试规则定义 ======================
+            # 408 请求超时 / 429 限流 / 500~599 服务端错误 / 连接类异常 / timeout异常
+            is_retryable = (
+                status_code in (408, 425, 429)
                 or (status_code is not None and 500 <= status_code < 600)
-                or "timeout" in error_name
-                or "connection" in error_name
-                or "temporarily" in str(e).lower()
-                or "空内容" in str(e)
+                or "timeout" in error_class_name
+                or "connection" in error_class_name
+                or "connect" in err_msg
+                or "temporarily" in err_msg
             )
 
-            if not retryable:
-                print(f"不可重试错误：{type(e).__name__}: {e}")
+            if not is_retryable:
+                print(f"[retry] 不可重试错误，直接抛出：{type(e).__name__}: {e}")
                 raise
 
             if attempt >= max_attempts:
-                print(f"请求失败，已达到最大重试次数：{e}")
+                print(f"[retry] 请求失败，已达到最大重试次数：{e}")
                 raise RuntimeError(
                     f"模型请求失败，已重试 {max_attempts} 次"
                 ) from e
 
-            # 指数退避 + 随机抖动
-            delay = min(
-                base_delay * (2 ** (attempt - 1)),
-                max_delay,
-            )
-
-            delay += random.uniform(0, 1)
-
-            # 如果服务商返回 Retry-After，优先参考
+            # 如果服务商返回 Retry-After 响应头，优先使用服务商指定等待时间
             headers = getattr(response, "headers", {}) if response else {}
             retry_after = headers.get("Retry-After") if headers else None
+            delay = None
 
             if retry_after:
                 try:
                     delay = min(float(retry_after), max_delay)
                 except (ValueError, TypeError):
-                    pass
+                    delay = None
+
+            # 没有合法Retry-After，才走指数退避+抖动
+            if delay is None:
+                raw_delay = base_delay * (2 ** (attempt - 1))
+                raw_delay = min(raw_delay, max_delay)
+                # Full Jitter 推荐写法，替换原来固定+0~1
+                delay = random.uniform(0, raw_delay)
 
             print(
-                f"请求失败：{type(e).__name__}，"
-                f"第 {attempt} 次尝试，"
-                f"{delay:.1f} 秒后重试"
+                f"[retry] 第 {attempt}/{max_attempts} 次失败，"
+                f"{delay:.1f}s 后重试 | 异常：{type(e).__name__}"
             )
 
             time.sleep(delay)
 
-    raise RuntimeError("模型请求失败，未获得响应")
+    # 理论不会走到这里，for循环内部attempt>=max_attempts已经raise
+    raise RuntimeError("重试循环异常退出")
 
 
 def invoke_until_complete(
-    model,
+    runner,
     prompt: str,
     max_rounds: int = 5,
-    max_attempts: int = 5,
-    tools=None,
-    max_tool_rounds: int = 10,
+    max_attempts_per_call: int = 5,
 ):
     """
-    自动检测回答完整性。
-    请求失败自动重试，回答截断自动续写。
+    ========== 【长文本续写层，只负责截断、<END_OF_ANSWER>标记，不处理网络重试细节、不碰工具】 ==========
+    职责边界：
+      1. 组装初始对话 messages
+      2. 循环调用底层 invoke_with_retry，拿到一轮输出
+      3. 检测：<END_OF_ANSWER> 标记完成，或者 finish_reason=length 截断
+      4. 截断时自动追加续写提示，继续请求
+      5. 上限：max_continue_rounds 轮续写，防止无限循环
+    【Runner 两种形态】
+      - 原生 ChatModel：拥有 bind_tools 方法，调用 runner.invoke(messages)
+      - LangGraph Agent（create_agent返回）：调用 runner.invoke({"messages": messages})，内部自动跑工具闭环
+    【重要约定】
+      Agent内部全权处理工具调用、ToolMessage、多轮tool循环；
+      本层看到的永远是Agent跑完工具链之后，产出的最终 AIMessage。
     """
 
     messages = [
@@ -177,7 +165,6 @@ def invoke_until_complete(
         ),
         HumanMessage(content=prompt),
     ]
-    tool_enabled_model = model.bind_tools(tools) if tools else model
 
     full_content = ""
     last_metadata = {}
@@ -185,22 +172,29 @@ def invoke_until_complete(
 
     for round_num in range(1, max_rounds + 1):
 
-        print(f"\n========== 第 {round_num} 轮生成 ==========")
+        print(f"\n========== 第 {round_num}/{max_rounds} 轮生成 ==========")
 
-        if tools:
-            result = invoke_model_with_tools(
-                tool_enabled_model,
-                messages,
-                tools,
-                max_tool_rounds=max_tool_rounds,
-                max_attempts=max_attempts,
-            )
-        else:
-            result = invoke_with_retry(
-                tool_enabled_model,
-                messages,
-                max_attempts=max_attempts,
-            )
+        # 构造无参回调，交给重试层执行
+        def run_once() -> AIMessage:
+            # 分支1：原生LLM model（ChatModel）
+            if hasattr(runner, "bind_tools"):
+                return runner.invoke(messages)
+            # 分支2：LangGraph Agent（create_agent）
+            else:
+                agent_out = runner.invoke({"messages": messages})
+                # 从Agent返回的消息列表里，取最后一条 AIMessage
+                for msg in reversed(agent_out["messages"]):
+                    has_content = bool(msg.content)
+                    has_tool_calls = bool(getattr(msg, "tool_calls", None))
+                    if has_content or has_tool_calls:
+                        return msg
+                raise RuntimeError("Agent返回结果中没有找到有效的 AIMessage（全部是空消息）")
+
+        # 调用【重试层】，自动处理429、超时、连接异常
+        result = invoke_with_retry(
+            runner_callable=run_once,
+            max_attempts=max_attempts_per_call,
+        )
 
         content = result.content
         last_metadata = result.response_metadata or {}
@@ -227,10 +221,10 @@ def invoke_until_complete(
             print("达到最大续写轮数。")
             break
 
-        # invoke_model_with_tools 已保存模型最终回答。
-        if not tools:
-            messages.append(AIMessage(content=content))
-
+        # 没有结束，准备下一轮续写：
+        # 1. 把本轮模型输出（AIMessage）加入上下文
+        # 2. 追加续写 HumanMessage 提示，让模型接着写
+        messages.append(result)
         # 请求模型继续
         messages.append(
             HumanMessage(
@@ -248,5 +242,6 @@ def invoke_until_complete(
         response_metadata={
             **last_metadata,
             "complete": completed,
+            "max_rounds": max_rounds,
         },
     )
