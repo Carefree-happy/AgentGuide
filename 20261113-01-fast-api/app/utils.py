@@ -138,6 +138,7 @@ def invoke_until_complete(
     prompt: str,
     max_rounds: int = 5,
     max_attempts_per_call: int = 5,
+    agent_config = None,
 ):
     """
     ========== 【长文本续写层，只负责截断、<END_OF_ANSWER>标记，不处理网络重试细节、不碰工具】 ==========
@@ -181,13 +182,25 @@ def invoke_until_complete(
                 return runner.invoke(messages)
             # 分支2：LangGraph Agent（create_agent）
             else:
-                agent_out = runner.invoke({"messages": messages})
+                invoke_payload = {"messages": messages}
+                if agent_config is not None:
+                    # 带 thread_id 等配置调用
+                    agent_out = runner.invoke(invoke_payload, config=agent_config)
+                else:
+                    agent_out = runner.invoke(invoke_payload)
                 # 从Agent返回的消息列表里，取最后一条 AIMessage
                 for msg in reversed(agent_out["messages"]):
-                    has_content = bool(msg.content)
-                    has_tool_calls = bool(getattr(msg, "tool_calls", None))
-                    if has_content or has_tool_calls:
-                        return msg
+                    if isinstance(msg, AIMessage):
+                        has_content = bool(msg.content)
+                        has_tool_calls = bool(getattr(msg, "tool_calls", None))
+                        if has_content or has_tool_calls:
+                            return msg
+                        else:
+                            # 是AIMessage，但它是空消息，跳过并打日志
+                            print("[debug] skip empty AIMessage")
+                    else:
+                        # 非AI消息，仅打印调试，继续循环
+                        print(f"[debug] skip non-AIMessage: {type(msg).__name__}")
                 raise RuntimeError("Agent返回结果中没有找到有效的 AIMessage（全部是空消息）")
 
         # 调用【重试层】，自动处理429、超时、连接异常
