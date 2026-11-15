@@ -1,21 +1,14 @@
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
-from langchain.agents.middleware import ToolCallLimitMiddleware
+from langchain.agents.middleware import ToolCallLimitMiddleware, TodoListMiddleware
 
+from deepagents import create_deep_agent
+from bashkit.deepagents import BashkitBackend
 
 from model import model
+from prompts import SYSTEM_PROMPT, SUBAGENTS
 from tools import fetch_text_from_url, calc_text_stats
 
-SYSTEM_PROMPT = """
-You are a literary research assistant.
-Rules:
-1. Never fabricate statistics, line numbers, or quotations.
-2. Distinguish verified facts from literary interpretations.
-3. Use tools to obtain evidence.
-4. For exact text statistics, use deterministic computation.
-5. When evidence is unavailable, explicitly report the limitation.
-6. Produce a structured and concise research report.
-"""
 
 TOOLS = [fetch_text_from_url, calc_text_stats]
 
@@ -33,4 +26,29 @@ agent = create_agent(
             exit_behavior="error",
         )
     ],
+)
+
+deep_checkpointer = InMemorySaver()
+
+backend = BashkitBackend(timeout_seconds=60)
+
+fetch_limit_mw = ToolCallLimitMiddleware(
+    tool_name="fetch_text_from_url",
+    run_limit=5,
+    exit_behavior="error",
+)
+
+todolist_mw = TodoListMiddleware(
+    # system_prompt="使用 write_todos 维护任务清单"
+)
+
+deep_agent = create_deep_agent(
+    model=model,
+    tools=TOOLS,
+    backend=backend,
+    system_prompt=SYSTEM_PROMPT,
+    middleware=[
+        fetch_limit_mw
+    ],
+    subagents=SUBAGENTS
 )

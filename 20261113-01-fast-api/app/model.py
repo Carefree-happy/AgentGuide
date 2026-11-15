@@ -7,7 +7,7 @@ from langchain.chat_models import init_chat_model
 load_dotenv()
 
 # 大模型
-LLMS = "QINIU"
+LLMS = "DEEPSEEK"
 
 API_KEY = os.getenv(f"{LLMS}_API_KEY")
 

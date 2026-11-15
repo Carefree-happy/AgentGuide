@@ -43,7 +43,7 @@ def invoke_with_retry(
     runner_callable,
     max_attempts=5,
     base_delay=2,
-    max_delay=30,
+    max_delay=60,
 ):
     """
     ========== 【底层网络&异常重试层，只负责通信容错，不关心续写、不关心工具】 ==========
@@ -117,7 +117,7 @@ def invoke_with_retry(
 
             # 没有合法Retry-After，才走指数退避+抖动
             if delay is None:
-                raw_delay = base_delay * (2 ** (attempt - 1))
+                raw_delay = base_delay * (8 ** (attempt - 1))
                 raw_delay = min(raw_delay, max_delay)
                 # Full Jitter 推荐写法，替换原来固定+0~1
                 delay = random.uniform(0, raw_delay)
@@ -258,3 +258,59 @@ def invoke_until_complete(
             "max_rounds": max_rounds,
         },
     )
+
+
+def run_agent_or_llm(
+    runner,
+    prompt,
+    max_rounds = 5,
+    max_attempts_per_call = 2,
+    agent_config = None,
+) -> AIMessage:
+    """
+    自动区分：普通ChatModel（开启续写） / DeepAgent（关闭续写，只跑一次invoke）
+    DeepAgent 判定依据：不是原生ChatModel，且具备 invoke + 内部工具闭环
+    """
+    # 判断是不是 DeepAgent / 带工具闭环Agent
+    # 简单可靠判断：没有 bind_tools 方法 → 视为Agent（DeepAgent、LangGraph Agent）
+    is_deep_agent = not hasattr(runner, "bind_tools")
+
+    messages = [
+        SystemMessage(content="请完整回答用户的问题。只有回答全部完成后，在最后单独输出 <END_OF_ANSWER>。"),
+        HumanMessage(content=prompt),
+    ]
+
+    if is_deep_agent:
+        print("[dispatch] 识别为 DeepAgent，禁用外层续写循环，仅单次invoke")
+        def run_once():
+            payload = {"messages": messages}
+            if agent_config is not None:
+                out = runner.invoke(payload, config=agent_config)
+            else:
+                out = runner.invoke(payload)
+            # 和你原来逻辑一致：取最后一条有效 AIMessage
+            for msg in reversed(out["messages"]):
+                if isinstance(msg, AIMessage):
+                    has_content = bool(msg.content)
+                    has_tool_calls = bool(getattr(msg, "tool_calls", None))
+                    if has_content or has_tool_calls:
+                        return msg
+                    else:
+                        print("[debug] skip empty AIMessage")
+            raise RuntimeError("DeepAgent 返回无有效 AIMessage")
+
+        result = invoke_with_retry(
+            runner_callable=run_once,
+            max_attempts=max_attempts_per_call,
+        )
+        return result
+    else:
+        print("[dispatch] 识别为普通 ChatModel，启用续写模式")
+        # 直接复用你原来完整的 invoke_until_complete 逻辑
+        return invoke_until_complete(
+            runner=runner,
+            prompt=prompt,
+            max_rounds=max_rounds,
+            max_attempts_per_call=max_attempts_per_call,
+            agent_config=agent_config,
+        )

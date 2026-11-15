@@ -1,34 +1,15 @@
-from utils import invoke_until_complete
+from utils import run_agent_or_llm
 from utils import timed_call
-from agent import agent
+from agent import deep_agent
+from prompts import DEEP_USER_CONTENT
 
-
-GUTENBERG_URL = "https://www.gutenberg.org/cache/epub/64317/pg64317.txt"
-
-user_content = f"""
-# Project: The Great Gatsby Literary Research
-Source: {GUTENBERG_URL}
-Analyze the complete Gutenberg text.
-
-Tasks:
-1. Use fetch_text_from_url to download the complete text.
-2. Use calc_text_stats to compute exact statistics.
-3. Character analysis of Jay Gatsby, Daisy Buchanan, Nick Carraway, Tom Buchanan, Jordan Baker.
-4. Chapter structure and summary.
-5. Final Markdown report with stats, character analysis, chapter summaries, synopsis, limitations.
-No shell, no filesystem. Use the provided tools only.
-"""
-
-user_config = {"configurable": {"thread_id": "gatsby-plain-agent-4"}}
+user_config = {"configurable": {"thread_id": "gatsby-deep-agent-1"}}
 
 # 拿到文本，获取长度
 def test_agent_fetch_text():
-    result = invoke_until_complete(
-        agent,
-        prompt = user_content,
-        max_rounds = 5,
-        max_attempts_per_call = 8,
-        agent_config = user_config
+    result = deep_agent.invoke(
+        {"messages": [{"role": "user", "content": DEEP_USER_CONTENT}]},
+        config=user_config
     )
     return result
 
