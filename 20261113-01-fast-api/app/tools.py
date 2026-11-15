@@ -16,14 +16,10 @@ def add(a: int, b: int) -> int:
 @tool
 def fetch_text_from_url(url: str) -> str:
     """
-    Download a complete plain-text document from a URL.
-    Return the original text without modifying its contents.
-
-    :param url: target url
-    :param verify_ssl: True=校验证书（生产默认），False=关闭校验（仅本地调试）
-    :param cafile: 自定义CA证书路径，企业内网私有CA使用
-    :param debug_ssl: 是否开启SSL底层调试输出
+    Fetch webpage text, then use LLM to summarize the content.
+    Returns both raw text and summary as markdown.
     """
+
     # 打印当前环境代理，用来排查是不是LangGraph thread上下文注入了代理
     http_proxy = os.environ.get("HTTP_PROXY")
     https_proxy = os.environ.get("HTTPS_PROXY")

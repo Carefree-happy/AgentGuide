@@ -7,9 +7,14 @@ from model import model
 from tools import fetch_text_from_url, calc_text_stats
 
 SYSTEM_PROMPT = """
-Call fetch_text_from_url exactly once to retrieve the requested 
-document. After receiving the text, report its character length. 
-Do not call any other tool. 
+You are a literary research assistant.
+Rules:
+1. Never fabricate statistics, line numbers, or quotations.
+2. Distinguish verified facts from literary interpretations.
+3. Use tools to obtain evidence.
+4. For exact text statistics, use deterministic computation.
+5. When evidence is unavailable, explicitly report the limitation.
+6. Produce a structured and concise research report.
 """
 
 TOOLS = [fetch_text_from_url, calc_text_stats]
@@ -24,7 +29,7 @@ agent = create_agent(
     middleware=[
         ToolCallLimitMiddleware(
             tool_name="fetch_text_from_url",
-            run_limit=1,
+            run_limit=10,
             exit_behavior="error",
         )
     ],
