@@ -65,3 +65,7 @@ agent 如何解决 fetch 尝试因 SSL 证书验证失败而未能获取文本
 1:37 Gatsby 出现次数： 264
 1:38 Daisy 出现次数： 186
 1:39 第一行包含 Daisy： Buchanans. Daisy was my second cousin once removed, and I’d known Tom
+
+## 生成目录树
+
+`chmod +x tree.sh && ./tree.sh`
