@@ -4,6 +4,7 @@ version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
     "bashkit[deepagents]>=0.21.0",
+    "certifi>=2026.10.23",
     "deepagents>=0.7.38",
     "fastapi[standard]",
     "google-genai>=3.3.0",

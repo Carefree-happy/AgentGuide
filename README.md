@@ -52,3 +52,16 @@ project
 - 指数退避让请求间隔越来越长
 - 随机抖动可以避免大量客户端在同一时间发生错误后，又在同一时间重新请求服务器，造成第二次流量拥堵。
 - 指数退避解决的是请求频率问题，随机抖动解决的是请求同步问题
+
+agent 如何解决 fetch 尝试因 SSL 证书验证失败而未能获取文本
+- `https://www.gutenberg.org/files/64317/64317-0.txt`：老路径，经常 SSL EOF、断连
+- `https://www.gutenberg.org/cache/epub/64317/pg64317.txt`：缓存镜像，稳定性强很多
+
+===== GATSBY TEXT STATS (正文，剔除Gutenberg版权头尾) =====
+1:33 总行数： 6408
+1:34 总字符(含换行空格)： 270822
+1:35 总字符(不含空白)： 220109
+1:36 单词总数： 49979
+1:37 Gatsby 出现次数： 264
+1:38 Daisy 出现次数： 186
+1:39 第一行包含 Daisy： Buchanans. Daisy was my second cousin once removed, and I’d known Tom

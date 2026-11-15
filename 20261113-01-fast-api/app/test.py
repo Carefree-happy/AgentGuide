@@ -3,7 +3,7 @@ from utils import timed_call
 from agent import agent
 
 
-GUTENBERG_URL = "https://www.gutenberg.org/files/64317/64317-0.txt"
+GUTENBERG_URL = "https://www.gutenberg.org/cache/epub/64317/pg64317.txt"
 
 user_content = f"""
 # Project: The Great Gatsby Literary Research
@@ -19,7 +19,7 @@ Tasks:
 No shell, no filesystem. Use the provided tools only.
 """
 
-user_config = {"configurable": {"thread_id": "gatsby-plain-agent"}}
+user_config = {"configurable": {"thread_id": "gatsby-plain-agent-4"}}
 
 # 拿到文本，获取长度
 def test_agent_fetch_text():

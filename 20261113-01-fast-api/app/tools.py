@@ -1,5 +1,8 @@
 import urllib.request
 import urllib.error
+import ssl
+import certifi
+import os
 
 from langchain.tools import tool
 
@@ -15,19 +18,43 @@ def fetch_text_from_url(url: str) -> str:
     """
     Download a complete plain-text document from a URL.
     Return the original text without modifying its contents.
+
+    :param url: target url
+    :param verify_ssl: True=校验证书（生产默认），False=关闭校验（仅本地调试）
+    :param cafile: 自定义CA证书路径，企业内网私有CA使用
+    :param debug_ssl: 是否开启SSL底层调试输出
     """
+    # 打印当前环境代理，用来排查是不是LangGraph thread上下文注入了代理
+    http_proxy = os.environ.get("HTTP_PROXY")
+    https_proxy = os.environ.get("HTTPS_PROXY")
+    no_proxy = os.environ.get("NO_PROXY")
+    print(f"[fetch debug] HTTP_PROXY={http_proxy}")
+    print(f"[fetch debug] HTTPS_PROXY={https_proxy}")
+    print(f"[fetch debug] NO_PROXY={no_proxy}")
+
     req = urllib.request.Request(
         url,
         headers={
             "User-Agent": "Mozilla/5.0"
         },
     )
+
+    context = ssl.create_default_context(cafile=certifi.where())
+
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
+        with urllib.request.urlopen(req, timeout=120, context=context) as resp:
             raw = resp.read()
             return raw.decode("utf-8", errors="replace")
     except urllib.error.URLError as e:
-        return f"Fetch failed: {e}"
+        # 细分类型，方便区分证书报错 / reset / 超时
+        if isinstance(e.reason, ssl.SSLCertVerificationError):
+            return f"[SSL Cert Error] Fetch failed: {e}"
+        elif isinstance(e.reason, OSError) and "Connection reset" in str(e.reason):
+            return f"[TLS Reset] Fetch failed: {e}"
+        elif isinstance(e.reason, TimeoutError):
+            return f"[Timeout] Fetch failed: {e}"
+        else:
+            return f"[URLError] Fetch failed: {e}"
 
 
 @tool
