@@ -25,11 +25,13 @@ LLMS = "DEEPSEEK"
 MODEL_ID = os.getenv(f"{LLMS}")
 BASE_URL = os.getenv(f"{LLMS}_URL")
 API_KEY = os.getenv(f"{LLMS}_API_KEY")
+ZHIPU_EMBEDDING = os.getenv("ZHIPU_EMBEDDING_API_KEY")
 
 check_config([
     (API_KEY, f"{LLMS}_API_KEY", f"{LLMS}_API_KEY"),
     (BASE_URL, f"{LLMS}_URL", f"{LLMS}_URL"),
-    (MODEL_ID, "MODEL_ID", LLMS)
+    (MODEL_ID, "MODEL_ID", LLMS),
+    (ZHIPU_EMBEDDING, "ZHIPU_EMBEDDING", "ZHIPU_EMBEDDING")
 ])
 
 model = init_chat_model(

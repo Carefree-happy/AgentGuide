@@ -1,28 +1,47 @@
 import asyncio
 from llama_index.core.agent.workflow import FunctionAgent
-from llama_index.core.workflow import Context
-from llama_index.core.memory import Memory
+from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Settings
+from llama_index.embeddings.zhipuai import ZhipuAIEmbedding
 
+from llm import llm, API_KEY, ZHIPU_EMBEDDING
 
-from llm import llm
-
-
-agent = FunctionAgent(
-    tools=[],
-    llm=llm,
-    system_prompt="You are a helpful assistant.",
+embed_model = ZhipuAIEmbedding(
+    model="embedding-3",   # 推荐 embedding-3；老版本 embedding-2
+    api_key=ZHIPU_EMBEDDING,
+    dimensions=1024,       # embedding-3支持，embedding-2固定1024，不用传
+    timeout=60
 )
 
-memory = Memory.from_defaults(session_id="test-session", token_limit=4000)
+Settings.embed_model = embed_model
 
-ctx = Context(agent)
+Settings.llm = llm
+
+
+def multiply(a: float, b: float) -> float:
+    """Useful for multiplying two numbers."""
+    return a * b
+
+
+async def search_documents(query: str) -> str:
+    """Useful for answering natural language questions about an personal essay written by Paul Graham."""
+    response = await query_engine.aquery(query)
+    return str(response)
+
+
+# Create a RAG tool using LlamaIndex
+documents = SimpleDirectoryReader("data").load_data()
+index = VectorStoreIndex.from_documents(documents)
+query_engine = index.as_query_engine()
+
+agent = FunctionAgent(
+    tools=[multiply, search_documents],
+    llm=llm,
+    system_prompt="""You are a helpful assistant that can perform calculations and search through documents to answer questions.""",
+)
 
 async def main():
-    response1 = await agent.run("My name is SUNJING", ctx=ctx, memory=memory)
-    print(response1)
-    print("Waiting for 2 seconds before asking the next question...")
-    await asyncio.sleep(10) # 等待一秒，确保上下文保存到内存中
-    response2 = await agent.run("What is my name?", ctx=ctx, memory=memory)
-    print(response2)
+    response = await agent.run("What did the author do in college? Also, what's 7 * 8?")
+
+    print(response)
 
 asyncio.run(main())
