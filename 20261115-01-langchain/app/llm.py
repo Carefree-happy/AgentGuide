@@ -20,7 +20,7 @@ def check_config(items: list):
             print(f"✅ {display_name} 已配置")
 
 # 大模型
-LLMS = "QINIU"
+LLMS = "DEEPSEEK"
 
 MODEL_ID = os.getenv(f"{LLMS}")
 BASE_URL = os.getenv(f"{LLMS}_URL")
