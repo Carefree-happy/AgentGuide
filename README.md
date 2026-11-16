@@ -44,7 +44,8 @@ project
 [Google AI Studio example](https://aistudio.google.com/docs/get-started)
 [Google AI Studio api keys](https://aistudio.google.com/api-keys)
 
-[七牛云](https://portal.qiniu.com/)
+## agent Key
+[七牛云 KEY](https://portal.qiniu.com/)
 
 # 问题一：返回的信息会出现卡断
 
@@ -69,3 +70,6 @@ agent 如何解决 fetch 尝试因 SSL 证书验证失败而未能获取文本
 ## 生成目录树
 
 `chmod +x tree.sh && ./tree.sh`
+
+## Embedding Key
+[bigmodel](https://bigmodel.cn/apikey/platform)
