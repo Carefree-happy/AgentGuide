@@ -1,28 +1,30 @@
 import asyncio
 from llama_index.core.agent.workflow import FunctionAgent
+from llama_index.core.workflow import Context
+from llama_index.core.memory import Memory
+
 
 from llm import llm
 
-def multiply(nums: list[float]) -> float:
-    """Useful for multiplying a batch of numbers.
-    Args:
-        nums: An array containing all numbers you want to multiply, e.g. [10,20,20,20,20]
-    You MUST call this tool, do NOT compute manually.
-    """
-    res = 1.0
-    for n in nums:
-        res *= n
-    return res
-
 
 agent = FunctionAgent(
-    tools=[multiply],
+    tools=[],
     llm=llm,
-    system_prompt="You are a helpful assistant that can multiply any number of numbers.",
+    system_prompt="You are a helpful assistant.",
 )
 
+# memory = Memory.from_defaults(session_id="test-session", token_limit=4000)
+
+ctx = Context(agent)
+
+ctx = Context(agent)
+
 async def main():
-    result = await agent.run("计算 10 * 20 * 20 * 20 * 20")
-    print(result)
+    response1 = await agent.run("My name is Logan", ctx=ctx)
+    print(response1)
+    print("Waiting for 2 seconds before asking the next question...")
+    await asyncio.sleep(20) # 等待一秒，确保上下文保存到内存中
+    response2 = await agent.run("What is my name?", ctx=ctx)
+    print(response2)
 
 asyncio.run(main())
